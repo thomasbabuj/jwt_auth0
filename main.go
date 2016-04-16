@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"time"
 
+	"github.com/auth0/go-jwt-middleware"
+	"github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 )
@@ -30,6 +33,11 @@ var products = []Product{
 	Product{Id: 5, Name: "Robin Hood", Slug: "robin-hood", Description: "Pick up the bow and arrow and master the art of archery"},
 	Product{Id: 6, Name: "Real World VR", Slug: "real-world-vr", Description: "Explore the seven wonders of the world in VR"},
 }
+
+/*
+mySigningKey for the secret key
+*/
+var mySigningKey = []byte("secret")
 
 /*
 StatusHandler will be invoked when the user calls the /status route. it will return
@@ -76,6 +84,35 @@ var AddFeedbackHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Re
 
 })
 
+/*
+GetTokenHandler is issue JWT token
+*/
+var GetTokenHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// create the token
+	token := jwt.New(jwt.SigningMethodHS256)
+
+	/* Set token claims */
+	token.Claims["admin"] = true
+	token.Claims["name"] = "tomtom"
+	token.Claims["exp"] = time.Now().Add(time.Hour * 24).Unix()
+
+	/* Sign the token with our secret */
+	tokenString, _ := token.SignedString(mySigningKey)
+
+	// Write the token to the browser window
+	w.Write([]byte(tokenString))
+})
+
+/*
+jwtMiddleware is to verify the jwt token
+*/
+var jwtMiddleware = jwtmiddleware.New(jwtmiddleware.Options{
+	ValidationKeyGetter: func(token *jwt.Token) (interface{}, error) {
+		return mySigningKey, nil
+	},
+	SigningMethod: jwt.SigningMethodHS256,
+})
+
 func main() {
 	// Instantiating the gorilla/mux router
 	r := mux.NewRouter()
@@ -86,8 +123,9 @@ func main() {
 
 	//Defining API routes
 	r.Handle("/status", StatusHandler).Methods("GET")
-	r.Handle("/products", ProductHandler).Methods("GET")
-	r.Handle("/products/{slug}/feedback", AddFeedbackHandler).Methods("POST")
+	r.Handle("/products", jwtMiddleware.Handler(ProductHandler)).Methods("GET")
+	r.Handle("/products/{slug}/feedback", jwtMiddleware.Handler(AddFeedbackHandler)).Methods("POST")
+	r.Handle("/get-token", GetTokenHandler).Methods("GET")
 
 	//Wrap LogginHandler from gorrila/handlers around our route. so that
 	//logger is called first on each route request
