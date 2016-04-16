@@ -3,7 +3,9 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 )
 
@@ -87,7 +89,9 @@ func main() {
 	r.Handle("/products", ProductHandler).Methods("GET")
 	r.Handle("/products/{slug}/feedback", AddFeedbackHandler).Methods("POST")
 
-	http.ListenAndServe(":3000", r)
+	//Wrap LogginHandler from gorrila/handlers around our route. so that
+	//logger is called first on each route request
+	http.ListenAndServe(":3000", handlers.LoggingHandler(os.Stdout, r))
 }
 
 // NotImplemented Handler, whenever an API is hit we will simply return
